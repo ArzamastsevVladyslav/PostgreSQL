@@ -1,4 +1,6 @@
 const { checkFieldPropertiesChanged } = require('./common');
+const assignTemplates = require("../../utils/assignTemplates");
+const templates = require("../../configs/templates");
 
 const getAddCollectionScript =
 	({ app, dbVersion, modelDefinitions, internalDefinitions, externalDefinitions }) =>
@@ -113,6 +115,44 @@ const getDeleteColumnScript = app => collection => {
 		.map(([name]) => `ALTER TABLE IF EXISTS ${fullName} DROP COLUMN IF EXISTS ${wrapInQuotes(name)};`);
 };
 
+const getUpsertCommentOnColumnScripts = (_, collection) => {
+    const {wrapComment, wrapInQuotes} = require("../general")(_);
+	const out = [];
+	for (const key of Object.keys(collection.properties)) {
+		const newComment = collection.properties[key].description;
+		const oldComment = collection.role.properties[key]?.description;
+		if (newComment) {
+			if (!oldComment || newComment !== oldComment) {
+				const comment = assignTemplates(templates.comment, {
+					object: 'COLUMN',
+					objectName: wrapInQuotes(key),
+					comment: wrapComment(newComment),
+				});
+				out.push(comment);
+			}
+		}
+	}
+	return out;
+}
+
+const getDeleteCommentOnColumnScripts = (_, collection) => {
+    const {wrapInQuotes} = require("../general")(_);
+	const out = [];
+	for (const key of Object.keys(collection.role.properties)) {
+		const newComment = collection.properties[key]?.description;
+		const oldComment = collection.role.properties[key].description;
+		if (oldComment && !newComment) {
+			const comment = assignTemplates(templates.dropComment, {
+				object: 'COLUMN',
+				objectName: wrapInQuotes(key),
+			});
+			out.push(comment);
+		}
+	}
+	return out;
+}
+
+
 const getModifyColumnScript = app => collection => {
 	const _ = app.require('lodash');
 	const { getEntityName } = require('../../utils/general')(_);
@@ -141,7 +181,10 @@ const getModifyColumnScript = app => collection => {
 				};`,
 		);
 
-	return [...renameColumnScripts, ...changeTypeScripts];
+	const upsertColumnCommentScripts = getUpsertCommentOnColumnScripts(_, collection);
+	const deleteColumnCommentScripts = getDeleteCommentOnColumnScripts(_, collection);
+
+	return [...renameColumnScripts, ...changeTypeScripts, ...upsertColumnCommentScripts, ...deleteColumnCommentScripts];
 };
 
 module.exports = {

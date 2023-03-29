@@ -6,6 +6,8 @@ module.exports = {
 
 	comment: 'COMMENT ON ${object} ${objectName} IS ${comment};\n',
 
+	dropComment: 'COMMENT ON ${object} ${objectName} IS NULL;\n',
+
 	createTable:
 		'CREATE${temporary} TABLE${ifNotExist} ${name} (\n' +
 		'${columnDefinitions}${keyConstraints}${checkConstraints}${foreignKeyConstraints}\n' +
