@@ -1,196 +1,138 @@
-const { checkFieldPropertiesChanged } = require('./common');
-const assignTemplates = require("../../utils/assignTemplates");
-const templates = require("../../configs/templates");
+const {
+    getUpsertCommentOnColumnScripts,
+    getDeleteCommentOnColumnScripts,
+    getRenameColumnScripts,
+    getChangeColumnTypeScripts
+} = require("./alterColumnHelper");
 
 const getAddCollectionScript =
-	({ app, dbVersion, modelDefinitions, internalDefinitions, externalDefinitions }) =>
-	collection => {
-		const _ = app.require('lodash');
-		const { getEntityName } = require('../../utils/general')(_);
-		const { createColumnDefinitionBySchema } = require('./createColumnDefinition')(app);
-		const ddlProvider = require('../../ddlProvider')(null, null, app);
-		const { getDefinitionByReference } = app.require('@hackolade/ddl-fe-utils');
+    ({app, dbVersion, modelDefinitions, internalDefinitions, externalDefinitions}) =>
+        collection => {
+            const _ = app.require('lodash');
+            const {getEntityName} = require('../../utils/general')(_);
+            const {createColumnDefinitionBySchema} = require('./createColumnDefinition')(app);
+            const ddlProvider = require('../../ddlProvider')(null, null, app);
+            const {getDefinitionByReference} = app.require('@hackolade/ddl-fe-utils');
 
-		const schemaName = collection.compMod.keyspaceName;
-		const schemaData = { schemaName, dbVersion };
-		const jsonSchema = { ...collection, ...(_.omit(collection?.role, 'properties') || {}) };
-		const columnDefinitions = _.toPairs(jsonSchema.properties).map(([name, column]) => {
-			const definitionJsonSchema = getDefinitionByReference({
-				propertySchema: column,
-				modelDefinitions,
-				internalDefinitions,
-				externalDefinitions,
-			});
+            const schemaName = collection.compMod.keyspaceName;
+            const schemaData = {schemaName, dbVersion};
+            const jsonSchema = {...collection, ...(_.omit(collection?.role, 'properties') || {})};
+            const columnDefinitions = _.toPairs(jsonSchema.properties).map(([name, column]) => {
+                const definitionJsonSchema = getDefinitionByReference({
+                    propertySchema: column,
+                    modelDefinitions,
+                    internalDefinitions,
+                    externalDefinitions,
+                });
 
-			return createColumnDefinitionBySchema({
-				name,
-				jsonSchema: column,
-				parentJsonSchema: jsonSchema,
-				ddlProvider,
-				schemaData,
-				definitionJsonSchema,
-			});
-		});
-		const checkConstraints = (jsonSchema.chkConstr || []).map(check =>
-			ddlProvider.createCheckConstraint(ddlProvider.hydrateCheckConstraint(check)),
-		);
-		const tableData = {
-			name: getEntityName(jsonSchema),
-			columns: columnDefinitions.map(ddlProvider.convertColumnDefinition),
-			checkConstraints: checkConstraints,
-			foreignKeyConstraints: [],
-			schemaData,
-			columnDefinitions,
-			dbData: { dbVersion },
-		};
-		const hydratedTable = ddlProvider.hydrateTable({ tableData, entityData: [jsonSchema], jsonSchema });
+                return createColumnDefinitionBySchema({
+                    name,
+                    jsonSchema: column,
+                    parentJsonSchema: jsonSchema,
+                    ddlProvider,
+                    schemaData,
+                    definitionJsonSchema,
+                });
+            });
+            const checkConstraints = (jsonSchema.chkConstr || []).map(check =>
+                ddlProvider.createCheckConstraint(ddlProvider.hydrateCheckConstraint(check)),
+            );
+            const tableData = {
+                name: getEntityName(jsonSchema),
+                columns: columnDefinitions.map(ddlProvider.convertColumnDefinition),
+                checkConstraints: checkConstraints,
+                foreignKeyConstraints: [],
+                schemaData,
+                columnDefinitions,
+                dbData: {dbVersion},
+            };
+            const hydratedTable = ddlProvider.hydrateTable({tableData, entityData: [jsonSchema], jsonSchema});
 
-		return ddlProvider.createTable(hydratedTable, jsonSchema.isActivated);
-	};
+            return ddlProvider.createTable(hydratedTable, jsonSchema.isActivated);
+        };
 
 const getDeleteCollectionScript = app => collection => {
-	const _ = app.require('lodash');
-	const { getEntityName } = require('../../utils/general')(_);
-	const { getNamePrefixedWithSchemaName } = require('../general')({ _ });
+    const _ = app.require('lodash');
+    const {getEntityName} = require('../../utils/general')(_);
+    const {getNamePrefixedWithSchemaName} = require('../general')({_});
 
-	const jsonData = { ...collection, ...(_.omit(collection?.role, 'properties') || {}) };
-	const tableName = getEntityName(jsonData);
-	const schemaName = collection.compMod.keyspaceName;
-	const fullName = getNamePrefixedWithSchemaName(tableName, schemaName);
+    const jsonData = {...collection, ...(_.omit(collection?.role, 'properties') || {})};
+    const tableName = getEntityName(jsonData);
+    const schemaName = collection.compMod.keyspaceName;
+    const fullName = getNamePrefixedWithSchemaName(tableName, schemaName);
 
-	return `DROP TABLE IF EXISTS ${fullName};`;
+    return `DROP TABLE IF EXISTS ${fullName};`;
 };
 
 const getAddColumnScript =
-	({ app, dbVersion, modelDefinitions, internalDefinitions, externalDefinitions }) =>
-	collection => {
-		const _ = app.require('lodash');
-		const { getEntityName } = require('../../utils/general')(_);
-		const { getNamePrefixedWithSchemaName } = require('../general')({ _ });
-		const { createColumnDefinitionBySchema } = require('./createColumnDefinition')(app);
-		const ddlProvider = require('../../ddlProvider')(null, null, app);
-		const { getDefinitionByReference } = app.require('@hackolade/ddl-fe-utils');
+    ({app, dbVersion, modelDefinitions, internalDefinitions, externalDefinitions}) =>
+        collection => {
+            const _ = app.require('lodash');
+            const {getEntityName} = require('../../utils/general')(_);
+            const {getNamePrefixedWithSchemaName} = require('../general')({_});
+            const {createColumnDefinitionBySchema} = require('./createColumnDefinition')(app);
+            const ddlProvider = require('../../ddlProvider')(null, null, app);
+            const {getDefinitionByReference} = app.require('@hackolade/ddl-fe-utils');
 
-		const collectionSchema = { ...collection, ...(_.omit(collection?.role, 'properties') || {}) };
-		const tableName = getEntityName(collectionSchema);
-		const schemaName = collectionSchema.compMod?.keyspaceName;
-		const fullName = getNamePrefixedWithSchemaName(tableName, schemaName);
-		const schemaData = { schemaName, dbVersion };
+            const collectionSchema = {...collection, ...(_.omit(collection?.role, 'properties') || {})};
+            const tableName = getEntityName(collectionSchema);
+            const schemaName = collectionSchema.compMod?.keyspaceName;
+            const fullName = getNamePrefixedWithSchemaName(tableName, schemaName);
+            const schemaData = {schemaName, dbVersion};
 
-		return _.toPairs(collection.properties)
-			.filter(([name, jsonSchema]) => !jsonSchema.compMod)
-			.map(([name, jsonSchema]) => {
-				const definitionJsonSchema = getDefinitionByReference({
-					propertySchema: jsonSchema,
-					modelDefinitions,
-					internalDefinitions,
-					externalDefinitions,
-				});
+            return _.toPairs(collection.properties)
+                .filter(([name, jsonSchema]) => !jsonSchema.compMod)
+                .map(([name, jsonSchema]) => {
+                    const definitionJsonSchema = getDefinitionByReference({
+                        propertySchema: jsonSchema,
+                        modelDefinitions,
+                        internalDefinitions,
+                        externalDefinitions,
+                    });
 
-				return createColumnDefinitionBySchema({
-					name,
-					jsonSchema,
-					parentJsonSchema: collectionSchema,
-					ddlProvider,
-					schemaData,
-					definitionJsonSchema,
-				});
-			})
-			.map(ddlProvider.convertColumnDefinition)
-			.map(script => `ALTER TABLE IF EXISTS ${fullName} ADD COLUMN IF NOT EXISTS ${script};`);
-	};
+                    return createColumnDefinitionBySchema({
+                        name,
+                        jsonSchema,
+                        parentJsonSchema: collectionSchema,
+                        ddlProvider,
+                        schemaData,
+                        definitionJsonSchema,
+                    });
+                })
+                .map(ddlProvider.convertColumnDefinition)
+                .map(script => `ALTER TABLE IF EXISTS ${fullName} ADD COLUMN IF NOT EXISTS ${script};`);
+        };
 
 const getDeleteColumnScript = app => collection => {
-	const _ = app.require('lodash');
-	const { getEntityName } = require('../../utils/general')(_);
-	const { getNamePrefixedWithSchemaName, wrapInQuotes } = require('../general')({ _ });
+    const _ = app.require('lodash');
+    const {getEntityName} = require('../../utils/general')(_);
+    const {getNamePrefixedWithSchemaName, wrapInQuotes} = require('../general')({_});
 
-	const collectionSchema = { ...collection, ...(_.omit(collection?.role, 'properties') || {}) };
-	const tableName = getEntityName(collectionSchema);
-	const schemaName = collectionSchema.compMod?.keyspaceName;
-	const fullName = getNamePrefixedWithSchemaName(tableName, schemaName);
+    const collectionSchema = {...collection, ...(_.omit(collection?.role, 'properties') || {})};
+    const tableName = getEntityName(collectionSchema);
+    const schemaName = collectionSchema.compMod?.keyspaceName;
+    const fullName = getNamePrefixedWithSchemaName(tableName, schemaName);
 
-	return _.toPairs(collection.properties)
-		.filter(([name, jsonSchema]) => !jsonSchema.compMod)
-		.map(([name]) => `ALTER TABLE IF EXISTS ${fullName} DROP COLUMN IF EXISTS ${wrapInQuotes(name)};`);
+    return _.toPairs(collection.properties)
+        .filter(([name, jsonSchema]) => !jsonSchema.compMod)
+        .map(([name]) => `ALTER TABLE IF EXISTS ${fullName} DROP COLUMN IF EXISTS ${wrapInQuotes(name)};`);
 };
 
-const getUpsertCommentOnColumnScripts = (_, collection) => {
-    const {wrapComment, wrapInQuotes} = require("../general")(_);
-	const out = [];
-	for (const key of Object.keys(collection.properties)) {
-		const newComment = collection.properties[key].description;
-		const oldComment = collection.role.properties[key]?.description;
-		if (newComment) {
-			if (!oldComment || newComment !== oldComment) {
-				const comment = assignTemplates(templates.comment, {
-					object: 'COLUMN',
-					objectName: wrapInQuotes(key),
-					comment: wrapComment(newComment),
-				});
-				out.push(comment);
-			}
-		}
-	}
-	return out;
-}
-
-const getDeleteCommentOnColumnScripts = (_, collection) => {
-    const {wrapInQuotes} = require("../general")(_);
-	const out = [];
-	for (const key of Object.keys(collection.role.properties)) {
-		const newComment = collection.properties[key]?.description;
-		const oldComment = collection.role.properties[key].description;
-		if (oldComment && !newComment) {
-			const comment = assignTemplates(templates.dropComment, {
-				object: 'COLUMN',
-				objectName: wrapInQuotes(key),
-			});
-			out.push(comment);
-		}
-	}
-	return out;
-}
-
-
 const getModifyColumnScript = app => collection => {
-	const _ = app.require('lodash');
-	const { getEntityName } = require('../../utils/general')(_);
-	const { getNamePrefixedWithSchemaName, wrapInQuotes } = require('../general')({ _ });
+    const _ = app.require('lodash');
 
-	const collectionSchema = { ...collection, ...(_.omit(collection?.role, 'properties') || {}) };
-	const tableName = getEntityName(collectionSchema);
-	const schemaName = collectionSchema.compMod?.keyspaceName;
-	const fullName = getNamePrefixedWithSchemaName(tableName, schemaName);
+    const renameColumnScripts = getRenameColumnScripts(_, collection)
+    const changeTypeScripts = getChangeColumnTypeScripts(_, collection)
+    const upsertColumnCommentScripts = getUpsertCommentOnColumnScripts(_, collection);
+    const deleteColumnCommentScripts = getDeleteCommentOnColumnScripts(_, collection);
 
-	const renameColumnScripts = _.values(collection.properties)
-		.filter(jsonSchema => checkFieldPropertiesChanged(jsonSchema.compMod, ['name']))
-		.map(
-			jsonSchema =>
-				`ALTER TABLE IF EXISTS ${fullName} RENAME COLUMN ${wrapInQuotes(
-					jsonSchema.compMod.oldField.name,
-				)} TO ${wrapInQuotes(jsonSchema.compMod.newField.name)};`,
-		);
-
-	const changeTypeScripts = _.toPairs(collection.properties)
-		.filter(([name, jsonSchema]) => checkFieldPropertiesChanged(jsonSchema.compMod, ['type', 'mode']))
-		.map(
-			([name, jsonSchema]) =>
-				`ALTER TABLE IF EXISTS ${fullName} ALTER COLUMN ${wrapInQuotes(name)} SET DATA TYPE ${
-					jsonSchema.compMod.newField.mode || jsonSchema.compMod.newField.type
-				};`,
-		);
-
-	const upsertColumnCommentScripts = getUpsertCommentOnColumnScripts(_, collection);
-	const deleteColumnCommentScripts = getDeleteCommentOnColumnScripts(_, collection);
-
-	return [...renameColumnScripts, ...changeTypeScripts, ...upsertColumnCommentScripts, ...deleteColumnCommentScripts];
+    return [...renameColumnScripts, ...changeTypeScripts, ...upsertColumnCommentScripts, ...deleteColumnCommentScripts];
 };
 
 module.exports = {
-	getAddCollectionScript,
-	getDeleteCollectionScript,
-	getAddColumnScript,
-	getDeleteColumnScript,
-	getModifyColumnScript,
+    getAddCollectionScript,
+    getDeleteCollectionScript,
+    getAddColumnScript,
+    getDeleteColumnScript,
+    getModifyColumnScript,
 };
